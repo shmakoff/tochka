@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#E9ECE4" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#161A14" media="(prefers-color-scheme: dark)">
+<meta name="color-scheme" content="light dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Точка">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<title>Точка</title>
+<style>
+  :root{
+    --bg:#E9ECE4; --ink:#1B2117; --muted:#5F6A58; --flag:#E8590C; --white:#FFFFFF; --ok:#2E7D32;
+    --face:#FFFFFF; --on-ink:#FFFFFF;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#161A14; --ink:#E9ECE4; --muted:#9AA592; --flag:#F26A1F; --white:#F2F2EE; --ok:#6CC070;
+           --face:#22281F; --on-ink:#161A14; }
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:var(--bg);color:var(--ink);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    -webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;
+  }
+  main{
+    min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:28px;padding:max(24px,env(safe-area-inset-top)) 24px max(24px,env(safe-area-inset-bottom));
+    text-align:center;
+  }
+  section{display:flex;flex-direction:column;align-items:center;gap:24px;width:100%}
+  section[hidden]{display:none}
+  button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+  button:focus-visible{outline:3px solid var(--ink);outline-offset:4px}
+
+  .status{font-size:17px;color:var(--muted);min-height:1.4em}
+  .status.good{color:var(--ok)}
+
+  /* кнопка-«КП»: призма ориентирования */
+  .save{display:flex;flex-direction:column;align-items:center;gap:18px}
+  .save .prism{
+    width:min(58vw,240px);aspect-ratio:1;border:3px solid var(--ink);
+    background:linear-gradient(135deg,var(--white) 0 50%,var(--flag) 50% 100%);
+    transition:transform .12s;
+  }
+  .save:active .prism{transform:scale(.96)}
+  .save span{font-size:24px;font-weight:700;line-height:1.2}
+  .save:disabled{cursor:default}
+  .save:disabled .prism{filter:grayscale(1);opacity:.4}
+  .save:disabled span{color:var(--muted)}
+
+  .dial{
+    position:relative;width:min(80vw,340px);aspect-ratio:1;border-radius:50%;
+    border:3px solid var(--ink);background:var(--face);
+  }
+  .north{position:absolute;inset:0}
+  .north b{
+    position:absolute;left:50%;top:-2px;transform:translate(-50%,-50%);
+    background:var(--ink);color:var(--on-ink);font-size:14px;font-weight:800;
+    width:28px;height:28px;border-radius:50%;display:grid;place-items:center;
+  }
+  #arrow{position:absolute;inset:10%;width:80%;height:80%}
+  .here-flag{
+    position:absolute;left:50%;top:50%;width:34%;aspect-ratio:1;transform:translate(-50%,-50%);
+    border:3px solid var(--ink);background:linear-gradient(135deg,var(--white) 0 50%,var(--flag) 50% 100%);
+    display:none;
+  }
+  .dial.here #arrow{display:none}
+  .dial.here .here-flag{display:block}
+
+  .dist{font-weight:800;font-size:clamp(64px,22vw,132px);line-height:.95;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+  .dist small{font-size:.32em;font-weight:700;letter-spacing:0;margin-left:.15em}
+  .hint{font-size:16px;color:var(--muted);max-width:32ch;line-height:1.4;min-height:1.4em}
+
+  .btn{border:2px solid var(--ink);padding:12px 22px;font-size:17px;font-weight:600}
+  .btn.primary{background:var(--ink);color:var(--on-ink)}
+  #arrow polygon{fill:var(--flag);stroke:var(--ink)}
+  .btn.danger{border-color:var(--flag);color:var(--flag)}
+  .btn[hidden]{display:none}
+</style>
+</head>
+<body>
+<main>
+  <section id="scrSave">
+    <p class="status" id="gps">Ищу спутники…</p>
+    <button class="save" id="saveBtn" disabled>
+      <div class="prism" aria-hidden="true"></div>
+      <span>Запомнить это место</span>
+    </button>
+    <p class="hint">Постойте несколько секунд на открытом месте — точность вырастет.</p>
+  </section>
+
+  <section id="scrNav" hidden>
+    <div class="dial" id="dial">
+      <div class="north" id="north"><b>С</b></div>
+      <svg id="arrow" viewBox="0 0 100 100" aria-hidden="true">
+        <polygon points="50,4 82,84 50,66 18,84" stroke-width="3" stroke-linejoin="round"/>
+      </svg>
+      <div class="here-flag" aria-hidden="true"></div>
+    </div>
+    <div class="dist" aria-live="polite"><span id="dist">—</span><small>м</small></div>
+    <p class="hint" id="hint"></p>
+    <button class="btn primary" id="compassBtn" hidden>Включить компас</button>
+    <button class="btn danger" id="resetBtn">Стереть точку</button>
+  </section>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const KEY = 'nav-point';
+let pos = null, target = null;
+let compass = null, compassAt = 0, cx = 0, cy = 0;
+let shownRot = 0, shownNorth = 0, wakeLock = null;
+
+/* ---------- хранение ---------- */
+async function loadPoint(){
+  if (window.storage){
+    try{ const r = await window.storage.get(KEY,false); return r ? JSON.parse(r.value) : null; }
+    catch(e){ return null; }
+  }
+  try{ const v = localStorage.getItem(KEY); return v ? JSON.parse(v) : null; }catch(e){ return null; }
+}
+async function savePoint(p){
+  if (window.storage){ try{ await window.storage.set(KEY, JSON.stringify(p), false); }catch(e){} return; }
+  try{ localStorage.setItem(KEY, JSON.stringify(p)); }catch(e){}
+}
+async function deletePoint(){
+  if (window.storage){ try{ await window.storage.delete(KEY,false); }catch(e){} return; }
+  try{ localStorage.removeItem(KEY); }catch(e){}
+}
+
+/* ---------- геометрия ---------- */
+const R = 6371000, rad = d => d*Math.PI/180, deg = r => r*180/Math.PI;
+function distance(a,b){
+  const dLat = rad(b.lat-a.lat), dLon = rad(b.lon-a.lon);
+  const h = Math.sin(dLat/2)**2 + Math.cos(rad(a.lat))*Math.cos(rad(b.lat))*Math.sin(dLon/2)**2;
+  return 2*R*Math.asin(Math.sqrt(h));
+}
+function bearing(a,b){
+  const y = Math.sin(rad(b.lon-a.lon))*Math.cos(rad(b.lat));
+  const x = Math.cos(rad(a.lat))*Math.sin(rad(b.lat)) - Math.sin(rad(a.lat))*Math.cos(rad(b.lat))*Math.cos(rad(b.lon-a.lon));
+  return (deg(Math.atan2(y,x))+360)%360;
+}
+const wrap = x => ((x%360)+540)%360-180;
+
+/* ---------- GPS ---------- */
+function onPos(p){
+  const c = p.coords;
+  pos = {lat:c.latitude, lon:c.longitude, acc:c.accuracy, course:c.heading, speed:c.speed};
+  const a = Math.round(c.accuracy), g = $('gps');
+  $('saveBtn').disabled = false;
+  if (a <= 10){ g.textContent = `Точность ±${a} м — отлично`; g.className='status good'; }
+  else if (a <= 30){ g.textContent = `Точность ±${a} м — можно сохранять`; g.className='status'; }
+  else { g.textContent = `Точность ±${a} м — лучше подождать`; g.className='status'; }
+}
+function onErr(e){
+  const msg = {1:'Нет доступа к геолокации. Разрешите его браузеру в настройках телефона.',
+               2:'Не удаётся определить место. Выйдите на открытое небо.',
+               3:'Спутники пока не найдены. Продолжаю искать…'}[e.code] || 'Ошибка геолокации.';
+  $('gps').textContent = msg; $('gps').className='status';
+  if (target) $('hint').textContent = msg;
+}
+if ('geolocation' in navigator){
+  navigator.geolocation.watchPosition(onPos, onErr, {enableHighAccuracy:true, maximumAge:0, timeout:30000});
+} else {
+  $('gps').textContent = 'Этот браузер не умеет определять местоположение.';
+}
+
+/* ---------- компас ---------- */
+function onOrient(e){
+  let h = null;
+  if (typeof e.webkitCompassHeading === 'number') h = e.webkitCompassHeading;           // iOS
+  else if (e.absolute && e.alpha != null) h = 360 - e.alpha;                            // Android
+  if (h == null) return;
+  const so = (screen.orientation && screen.orientation.angle) || window.orientation || 0;
+  h = (h + so + 360) % 360;
+  cx = cx*0.8 + Math.cos(rad(h))*0.2;  cy = cy*0.8 + Math.sin(rad(h))*0.2;           // сглаживание
+  compass = (deg(Math.atan2(cy,cx))+360)%360;  compassAt = Date.now();
+  $('compassBtn').hidden = true;
+}
+const needsPermission = typeof DeviceOrientationEvent !== 'undefined' &&
+                        typeof DeviceOrientationEvent.requestPermission === 'function';
+function listenCompass(){
+  if ('ondeviceorientationabsolute' in window) addEventListener('deviceorientationabsolute', onOrient);
+  else addEventListener('deviceorientation', onOrient);
+}
+async function askCompass(){
+  if (!needsPermission) return;
+  try{ await DeviceOrientationEvent.requestPermission(); }catch(e){}
+}
+if (!needsPermission) listenCompass(); else listenCompass(); // на iOS события пойдут после разрешения
+
+function heading(){
+  if (compass != null && Date.now()-compassAt < 2000) return {h:compass, src:'compass'};
+  if (pos && pos.course != null && !isNaN(pos.course) && pos.speed > 0.8) return {h:pos.course, src:'gps'};
+  return {h:null, src:null};
+}
+
+/* ---------- экран не гаснет ---------- */
+async function keepAwake(){
+  try{ if ('wakeLock' in navigator && !wakeLock) { wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release',()=>wakeLock=null); } }catch(e){}
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden && target) keepAwake(); });
+
+/* ---------- экраны ---------- */
+function showNav(){
+  $('scrSave').hidden = true; $('scrNav').hidden = false;
+  if (needsPermission && compass == null) $('compassBtn').hidden = false;
+  keepAwake();
+}
+function showSave(){ $('scrNav').hidden = true; $('scrSave').hidden = false; }
+
+$('saveBtn').addEventListener('click', async () => {
+  if (!pos) return;
+  askCompass();
+  target = {lat:pos.lat, lon:pos.lon, acc:pos.acc, t:Date.now()};
+  await savePoint(target);
+  showNav();
+});
+$('compassBtn').addEventListener('click', askCompass);
+
+let armed = null;
+$('resetBtn').addEventListener('click', async () => {
+  const b = $('resetBtn');
+  if (!armed){
+    b.textContent = 'Нажмите ещё раз, чтобы стереть';
+    armed = setTimeout(() => { armed = null; b.textContent = 'Стереть точку'; }, 3000);
+    return;
+  }
+  clearTimeout(armed); armed = null; b.textContent = 'Стереть точку';
+  target = null; await deletePoint(); showSave();
+});
+
+/* ---------- отрисовка ---------- */
+function frame(){
+  if (target && pos){
+    const d = distance(pos, target), b = bearing(pos, target), {h, src} = heading();
+    const rel = h == null ? b : b - h;
+    shownRot += wrap(rel - shownRot) * 0.2;
+    shownNorth += wrap((h == null ? 0 : -h) - shownNorth) * 0.2;
+    $('arrow').style.transform = `rotate(${shownRot}deg)`;
+    $('north').style.transform = `rotate(${shownNorth}deg)`;
+    $('dist').textContent = Math.round(d).toLocaleString('ru-RU');
+
+    const acc = Math.round(pos.acc), here = d <= Math.max(pos.acc, 5);
+    $('dial').classList.toggle('here', here);
+    let t = `Точность GPS ±${acc} м`;
+    if (here) t = `Вы на месте (±${acc} м)`;
+    else if (src === 'gps') t += '. Компаса нет — направление по ходу движения';
+    else if (src === null) t += '. Компас недоступен — стрелка показана относительно севера (С)';
+    $('hint').textContent = t;
+  }
+  requestAnimationFrame(frame);
+}
+
+/* ---------- офлайн ---------- */
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')){
+  addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(()=>{}));
+}
+
+(async () => {
+  target = await loadPoint();
+  if (target) showNav();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
